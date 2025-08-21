@@ -1,3 +1,4 @@
+# routers.py
 from fastapi import APIRouter, File, UploadFile, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -8,13 +9,14 @@ import os, uuid, json
 
 from app.database import get_db
 from app import models
-from model_loader import load_model
-from utils import preprocess_image
+from app.model_loader import load_model
+from app.utils import preprocess_image
 
 router = APIRouter()
 
 # AI 모델 로드
-model = load_model("../workspace/clientResults/base_model072.h5")
+from app.model_loader import load_model
+model = load_model()
 
 # OpenAI 클라이언트 초기화
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))

@@ -1,6 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from dotenv import load_dotenv
 import os
+
+# .env 파일 로드
+load_dotenv()
 
 # PostgreSQL 연결 URL
 DATABASE_URL = os.getenv(
