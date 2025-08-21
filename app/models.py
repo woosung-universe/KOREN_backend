@@ -69,6 +69,7 @@ class Diagnosis(Base):
   medical_image_id = Column(Integer, ForeignKey("medical_images.id"))
   communication_summary_id = Column(Integer, ForeignKey("communication_summaries.id"))
   diagnosis = Column(Enum(DiagnosisEnum))
+  anatomy_site = Column(Enum(AnatomySiteEnum))
   confidence_score = Column(Float)
   target_value = Column(Integer)  # 0: benign, 1: malignant
   diagnosed_by = Column(String)  # AI_MODEL 또는 DOCTOR_NAME

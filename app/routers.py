@@ -213,3 +213,63 @@ def create_summary(input_data: ConversationInput, db: Session = Depends(get_db))
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
+
+# -----------------------------
+# GET: STT 기반 대화 요약
+# -----------------------------
+@router.get("/summary/{patient_id}")
+def get_latest_summary(patient_id: str, db: Session = Depends(get_db)):
+  # 환자 조회
+  patient = db.query(models.Patient).filter(models.Patient.patient_id==patient_id).first()
+  if not patient:
+    raise HTTPException(status_code=404, detail="Patient not found")
+
+  # 최신 CommunicationSummary 조회
+  summary = db.query(models.CommunicationSummary) \
+    .order_by(models.CommunicationSummary.summary_created_at.desc()) \
+    .first()
+
+  if not summary:
+    raise HTTPException(status_code=404, detail="No communication summary found for this patient")
+
+  # summary.summary는 JSON text이므로 파싱
+  summary_json = json.loads(summary.summary)
+
+  return {
+    "patient_id": patient.patient_id,
+    "latest_summary": summary_json,
+    "created_at": summary.summary_created_at
+  }
+
+# -----------------------------
+# GET: 전체 진단 기록
+# -----------------------------
+@router.get("/diagnoses")
+def get_diagnoses(db: Session = Depends(get_db)):
+  # 모든 진단 기록 조회
+  diagnoses = db.query(models.Diagnosis) \
+    .order_by(models.Diagnosis.diagnosed_at.desc()) \
+    .all()
+
+  if not diagnoses:
+    raise HTTPException(status_code=404, detail="No diagnosis records found for this patient")
+
+  # 프론트엔드 명칭에 맞게 매핑
+  results = []
+  for d in diagnoses:
+    results.append({
+      "anatom_site_general_challenge": d.anatomy_site.value if d.anatomy_site else None,
+      "location": d.anatomy_site.value if d.anatomy_site else None,
+      "benign_malignant": d.diagnosis.value if d.diagnosis else None,
+      "age_approx": d.patient.age,
+      "confidence_score": d.confidence_score,
+      "diagnosed_by": d.diagnosed_by,
+      "diagnosed_at": d.diagnosed_at.isoformat()
+    })
+
+  return {
+    "patient_id": d.patient.patient_id,
+    "patient_name": d.patient.name,
+    "diagnoses": results
+  }
+

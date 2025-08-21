@@ -39,6 +39,7 @@ CREATE TABLE diagnoses (
                            medical_image_id INTEGER REFERENCES medical_images(id) ON DELETE CASCADE,
                            communication_summary_id INTEGER REFERENCES communication_summaries(id) ON DELETE SET NULL,
                            diagnosis diagnosis_enum,
+                           anatomy_site anatomy_site_enum,
                            confidence_score FLOAT,
                            target_value INTEGER,
                            diagnosed_by VARCHAR(255),
