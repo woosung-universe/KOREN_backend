@@ -56,10 +56,7 @@ class CommunicationSummary(Base):
 
   id = Column(Integer, primary_key=True, index=True)
   summary_created_at = Column(DateTime, default=datetime.utcnow)
-  doctor_notes = Column(Text)
-  patient_concerns = Column(Text)
-  care_plans = Column(Text)
-  prescription = Column(Text)
+  summary = Column(Text)
 
   diagnosis = relationship("Diagnosis", back_populates="communication_summary", uselist=False)
 

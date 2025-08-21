@@ -29,10 +29,7 @@ CREATE TABLE medical_images (
 CREATE TABLE communication_summaries (
                                          id SERIAL PRIMARY KEY,
                                          summary_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                         doctor_notes TEXT,
-                                         care_plans TEXT,
-                                         patient_concerns TEXT,
-                                         prescription TEXT
+                                         summary TEXT
 );
 
 -- DIAGNOSES
