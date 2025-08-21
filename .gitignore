@@ -9,7 +9,7 @@ __pycache__/
 
 # Virtual environment
 venv/
-.env/
+.env
 .env.*     # .env.local, .env.dev 등 환경파일
 
 # Database / IDE
