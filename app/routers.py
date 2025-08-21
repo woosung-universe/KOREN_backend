@@ -1,27 +1,27 @@
-import Form
-from fastapi import APIRouter, File, UploadFile, Depends, HTTPException
+from fastapi import APIRouter, File, UploadFile, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from openai import OpenAI
 from datetime import datetime
-import os
-import json
+import os, uuid, json
 
 from app.database import get_db
-from app import crud, models
+from app import models
 from model_loader import load_model
 from utils import preprocess_image
 
 router = APIRouter()
 
-# 모델 로드
+# AI 모델 로드
 model = load_model("../workspace/clientResults/base_model072.h5")
 
 # OpenAI 클라이언트 초기화
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Post: 진단하기
+# -----------------------------
+# POST: 진단하기
+# -----------------------------
 @router.post("/diagnose")
 async def diagnose(
     file: UploadFile = File(...),
@@ -88,7 +88,7 @@ async def diagnose(
     db.commit()
     db.refresh(diagnosis)
 
-    # total_diagnosis_summary 가져오기
+    # 기존 total_diagnosis_summary 가져오기
     total_summary = patient.total_diagnosis_summary
 
     return JSONResponse(content={
@@ -101,15 +101,15 @@ async def diagnose(
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
 
-
+# -----------------------------
 # GET: 진단 결과
+# -----------------------------
 @router.get("/diagnosis/{patient_id}")
 def get_diagnosis(patient_id: str, db: Session = Depends(get_db)):
   patient = db.query(models.Patient).filter(models.Patient.patient_id==patient_id).first()
   if not patient:
     raise HTTPException(status_code=404, detail="Patient not found")
 
-  # 최신 Diagnosis 가져오기
   diagnosis = db.query(models.Diagnosis) \
     .filter(models.Diagnosis.patient_id==patient.id) \
     .order_by(models.Diagnosis.diagnosed_at.desc()) \
@@ -124,15 +124,13 @@ def get_diagnosis(patient_id: str, db: Session = Depends(get_db)):
     "ai_description": diagnosis.ai_description
   }
 
-
-
-# Post: 대화 요약
-# 입력 DTO
+# -----------------------------
+# POST: STT 기반 대화 요약
+# -----------------------------
 class ConversationInput(BaseModel):
   patient_id: str
-  conversation: str  # STT된 대화 텍스트
+  conversation: str
 
-# CommunicationSummary 출력 DTO (DB 저장용)
 class CommunicationSummaryDTO(BaseModel):
   doctor_notes: str
   patient_concerns: str
@@ -142,7 +140,7 @@ class CommunicationSummaryDTO(BaseModel):
 @router.post("/summarize", response_model=dict)
 def create_summary(input_data: ConversationInput, db: Session = Depends(get_db)):
   try:
-    # STT 기반 대화 요약 (CommunicationSummary)
+    # STT 기반 대화 요약
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -166,19 +164,23 @@ def create_summary(input_data: ConversationInput, db: Session = Depends(get_db))
 
     # JSON 파싱
     summary_json_kor = response.choices[0].message.parsed
-
-    #  ️CommunicationSummary DB 저장
     summary_text = json.dumps(summary_json_kor, ensure_ascii=False)
 
-    # 3️total_diagnosis_summary 갱신
+    # CommunicationSummary DB 직접 저장
+    db_summary = models.CommunicationSummary(
+        summary_created_at=datetime.utcnow(),
+        summary=summary_text
+    )
+    db.add(db_summary)
+    db.commit()
+    db.refresh(db_summary)
+
+    # total_diagnosis_summary 갱신
     patient = db.query(models.Patient).filter(models.Patient.patient_id == input_data.patient_id).first()
     if not patient:
       raise HTTPException(status_code=404, detail="Patient not found")
 
-    # 이전 total_diagnosis_summary 불러오기
     prev_total_summary = patient.total_diagnosis_summary or ""
-
-    # LLM에게 누적 요약 요청
     total_summary_prompt = f"""
 당신은 의료 기록 요약 전문가입니다.
 다음은 이전까지의 환자 총 진료 요약입니다:
@@ -207,7 +209,7 @@ def create_summary(input_data: ConversationInput, db: Session = Depends(get_db))
     patient.total_diagnosis_summary = json.dumps(total_summary_json, ensure_ascii=False)
     db.commit()
 
-    return summary_json_kor  # 프론트엔드에는 STT 요약 JSON 그대로 반환
+    return summary_json_kor
 
   except Exception as e:
     raise HTTPException(status_code=500, detail=str(e))
