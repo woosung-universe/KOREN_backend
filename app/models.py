@@ -75,6 +75,7 @@ class Diagnosis(Base):
   ai_description = Column(Text)
   diagnosed_at = Column(DateTime, default=datetime.utcnow)
 
+
   patient = relationship("Patient", back_populates="diagnoses")
   medical_image = relationship("MedicalImage", back_populates="diagnoses")
   communication_summary = relationship("CommunicationSummary", back_populates="diagnosis", uselist=False)
