@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pytest_cache/
+*.mypy_cache/
+
+# Virtual environment
+venv/
+.env/
+.env.*     # .env.local, .env.dev 등 환경파일
+
+# Database / IDE
+*.sqlite3
+*.db
+*.log
+*.pot
+*.py[cod]
+.idea/
+.vscode/
+.DS_Store
+
+# FastAPI / Starlette
+*.egg-info/
+dist/
+build/
