@@ -53,19 +53,8 @@ def create_summary(input_data: ConversationInput, db: Session = Depends(get_db))
     # JSON 파싱
     summary_json_kor = response.choices[0].message.parsed
 
-    # DB 저장용 매핑
-    summary_json_en = {
-      "doctor_notes": summary_json_kor.get("의사 소견", ""),
-      "patient_concerns": summary_json_kor.get("환자의 우려점", ""),
-      "care_plans": summary_json_kor.get("진료 계획", ""),
-      "prescription": summary_json_kor.get("처방", "")
-    }
-
-    # 2️CommunicationSummary DB 저장
+    #  ️CommunicationSummary DB 저장
     summary_text = json.dumps(summary_json_kor, ensure_ascii=False)
-    comm_summary = crud.create_communication_summary(db, {
-      "summary": summary_text
-    })
 
     # 3️total_diagnosis_summary 갱신
     patient = db.query(models.Patient).filter(models.Patient.patient_id == input_data.patient_id).first()
