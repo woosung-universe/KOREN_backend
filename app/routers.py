@@ -127,9 +127,8 @@ def get_diagnosis(patient_id: str, db: Session = Depends(get_db)):
     raise HTTPException(status_code=404, detail="No diagnosis found for this patient")
 
   return {
-    "total_diagnosis_summary": patient.total_diagnosis_summary,
     "diagnosis": diagnosis.diagnosis,
-    "medical_image_id": diagnosis.medical_image_id,
+    "confidence_score": diagnosis.confidence_score,
     "ai_description": diagnosis.ai_description
   }
 
