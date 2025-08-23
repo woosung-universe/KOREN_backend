@@ -67,7 +67,7 @@ class Diagnosis(Base):
   id = Column(Integer, primary_key=True, index=True)
   patient_id = Column(Integer, ForeignKey("patients.id"))
   medical_image_id = Column(Integer, ForeignKey("medical_images.id"))
-  communication_summary_id = Column(Integer, ForeignKey("communication_summaries.id"))
+  communication_summary_id = Column(Integer, ForeignKey("communication_summaries.id")) # TODO: 추후 대화 요약이 생성된 후 이 필드에 대화 id가 추가 돼서 진단 기록들에서 조회할 수 있도록 하기 위함
   diagnosis = Column(Enum(DiagnosisEnum))
   anatomy_site = Column(Enum(AnatomySiteEnum))
   confidence_score = Column(Float)
