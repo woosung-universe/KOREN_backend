@@ -71,7 +71,7 @@ async def diagnose(
     confidence = float(pred)
     diagnosis_result = "malignant" if confidence > 0.5 else "benign"
     target_value = 1 if diagnosis_result=="malignant" else 0
-    ai_description = f"AI predicted {diagnosis_result} with confidence {confidence:.2f}" # TODO: 나중에 보완할 때는 AI LLM 소견으로 바꾸기
+    ai_description = f"진단 결과, {diagnosis_result} 이(가) 의심됩니다. 관련된 추가적인 처방을 제공해주세요." # TODO: 나중에 보완할 때는 AI LLM 소견으로 바꾸기
 
     # Diagnosis 생성
     diagnosis = models.Diagnosis(
@@ -103,6 +103,7 @@ async def diagnose(
       "diagnosis": diagnosis_result,
       "medical_image_id": medical_image.id,
       "ai_description": ai_description,
+      "confidence_score": confidence,
       "previous_summary": previous_summary_data
     })
 
