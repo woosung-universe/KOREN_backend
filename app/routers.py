@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from openai import OpenAI
 from datetime import datetime
-import os, uuid, json
+import os, uuid, json, ast
 
 from app.database import get_db
 from app import models
@@ -139,19 +139,18 @@ class ConversationInput(BaseModel):
   patient_id: str
   conversation: str
 
-class CommunicationSummaryDTO(BaseModel):
-  doctor_notes: str
-  patient_concerns: str
-  care_plans: str
-  prescription: str
-
 @router.post("/summarize", response_model=dict)
 def create_summary(input_data: ConversationInput, db: Session = Depends(get_db)):
   try:
-    # 환자 데이터 입력 TODO: 프론트에서 환자 id도 ConversationInput에 같이 줘야함
+    # 환자 조회
     patient = db.query(models.Patient).filter(models.Patient.patient_id == input_data.patient_id).first()
     if not patient:
       raise HTTPException(status_code=404, detail="Patient not found")
+
+    # conversation 전처리: 빈 문자열 체크, 줄바꿈 제거
+    conversation = (input_data.conversation or "").strip().replace("\n", " ").replace("\r", "")
+    if not conversation:
+      raise HTTPException(status_code=400, detail="conversation is empty")
 
     # STT 기반 대화 요약
     response = client.chat.completions.create(
@@ -160,7 +159,7 @@ def create_summary(input_data: ConversationInput, db: Session = Depends(get_db))
           {"role": "system", "content": "You are a medical assistant. Summarize the doctor-patient conversation."},
           {"role": "user", "content": f"""
 대화:
-\"\"\"{input_data.conversation}\"\"\"
+\"\"\"{conversation}\"\"\"
 
 대화 텍스트에는 화자 정보가 없습니다. 
 문맥을 보고 의사와 환자 중 누가 말하는지 추론하여 JSON으로 요약하십시오:
@@ -176,24 +175,43 @@ def create_summary(input_data: ConversationInput, db: Session = Depends(get_db))
     )
 
     # OpenAI 응답에서 content 가져오기
-    summary_text = response.choices[0].message.content  # JSON 문자열
-    summary_json_kor = json.loads(summary_text)         # JSON 문자열 -> dict
+    summary_text = response.choices[0].message.content
+
+    # JSON 파싱 안전하게 처리
+    try:
+      summary_json_kor = json.loads(summary_text)
+    except json.JSONDecodeError:
+      # LLM 출력이 완전히 올바른 JSON이 아닐 때
+      summary_json_kor = ast.literal_eval(summary_text)
 
     # JSON 키별로 CommunicationSummary에 개별 저장
     for category, content in summary_json_kor.items():
-      db_summary = models.CommunicationSummary(
-          patient_id=patient.id,
-          summary_created_at=datetime.utcnow(),
-          category=category,
-          content=content
-      )
-      db.add(db_summary)
-    db.commit()
+      # content 전처리: 긴 문자열, 특수문자 방어
+      content_safe = (content or "").encode('utf-8', errors='replace').decode('utf-8')
+      if not category:
+        category = "unknown"
+      if len(content_safe) > 10000:
+        content_safe = content_safe[:10000]
+
+      try:
+        db_summary = models.CommunicationSummary(
+            patient_id=patient.id,
+            summary_created_at=datetime.utcnow(),
+            category=category,
+            content=content_safe
+        )
+        db.add(db_summary)
+        db.commit()
+      except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"DB insert error: {e}")
 
     return summary_json_kor
 
+  except HTTPException:
+    raise
   except Exception as e:
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
 # -----------------------------
 # GET: STT 기반 대화 요약
@@ -215,13 +233,14 @@ def get_latest_summary(patient_id: str, db: Session = Depends(get_db)):
   if not summaries:
     raise HTTPException(status_code=404, detail="No communication summary found for this patient")
 
+  summaries = list(reversed(summaries))  # 최신 → 이전 순
   result = {s.category: s.content for s in summaries}
 
   return {
-    "patient_id": patient.patient_id,
-    "latest_summary": result,
-    "created_at": [s.summary_created_at for s in summaries]
-  }
+      "patient_id": patient.patient_id,
+      "latest_summary": result,
+      "created_at": [s.summary_created_at for s in summaries]
+    }
 
 # -----------------------------
 # GET: 전체 진단 기록
