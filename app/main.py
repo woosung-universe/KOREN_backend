@@ -1,9 +1,11 @@
-#main.py
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import router
+from app.model_loader import load_model
 
 app = FastAPI()
+model = load_model()
 
 # CORS 설정
 app.add_middleware(

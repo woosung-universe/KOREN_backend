@@ -9,7 +9,6 @@ import os, uuid, json
 
 from app.database import get_db
 from app import models
-from app.model_loader import load_model
 from app.utils import preprocess_image
 
 router = APIRouter()
@@ -72,7 +71,7 @@ async def diagnose(
     confidence = float(pred)
     diagnosis_result = "malignant" if confidence > 0.5 else "benign"
     target_value = 1 if diagnosis_result=="malignant" else 0
-    ai_description = f"AI predicted {diagnosis_result} with confidence {confidence:.2f}"
+    ai_description = f"AI predicted {diagnosis_result} with confidence {confidence:.2f}" # TODO: 나중에 보완할 때는 AI LLM 소견으로 바꾸기
 
     # Diagnosis 생성
     diagnosis = models.Diagnosis(
@@ -82,8 +81,9 @@ async def diagnose(
         diagnosis=diagnosis_result,
         confidence_score=confidence,
         target_value=target_value,
-        diagnosed_by="AI_MODEL",
+        diagnosed_by="AI_MODEL", # TODO: 나중에 연합학습으로 갱신된 모델 버전으로 표시해도 좋을 듯
         ai_description=ai_description,
+        anatomy_site=anatomy_site,
         diagnosed_at=datetime.utcnow()
     )
     db.add(diagnosis)
@@ -164,9 +164,9 @@ def create_summary(input_data: ConversationInput, db: Session = Depends(get_db))
         response_format={"type": "json_object"}
     )
 
-    # JSON 파싱
-    summary_json_kor = response.choices[0].message.parsed
-    summary_text = json.dumps(summary_json_kor, ensure_ascii=False)
+    # OpenAI 응답에서 content 가져오기
+    summary_text = response.choices[0].message.content  # JSON 문자열
+    summary_json_kor = json.loads(summary_text)         # JSON 문자열 -> dict
 
     # CommunicationSummary DB 직접 저장
     db_summary = models.CommunicationSummary(
@@ -207,7 +207,8 @@ def create_summary(input_data: ConversationInput, db: Session = Depends(get_db))
         response_format={"type": "json_object"}
     )
 
-    total_summary_json = total_response.choices[0].message.parsed
+    total_summary_text = total_response.choices[0].message.content
+    total_summary_json = json.loads(total_summary_text)
     patient.total_diagnosis_summary = json.dumps(total_summary_json, ensure_ascii=False)
     db.commit()
 
@@ -249,29 +250,30 @@ def get_latest_summary(patient_id: str, db: Session = Depends(get_db)):
 @router.get("/diagnoses")
 def get_diagnoses(db: Session = Depends(get_db)):
   # 모든 진단 기록 조회
-  diagnoses = db.query(models.Diagnosis) \
-    .order_by(models.Diagnosis.diagnosed_at.desc()) \
-    .all()
+  diagnoses = db.query(models.Diagnosis).order_by(models.Diagnosis.diagnosed_at.desc()).all()
 
   if not diagnoses:
-    raise HTTPException(status_code=404, detail="No diagnosis records found for this patient")
+    raise HTTPException(status_code=404, detail="No diagnosis records found")
 
-  # 프론트엔드 명칭에 맞게 매핑
   results = []
   for d in diagnoses:
     results.append({
+      "image_name": d.medical_image.image_name if d.medical_image else None,
+      "patient_id": d.patient.patient_id if d.patient else None,
+      "sex": d.patient.sex.value if d.patient and d.patient.sex else None,
+      "age_approx": d.patient.age if d.patient else None,
       "anatom_site_general_challenge": d.anatomy_site.value if d.anatomy_site else None,
-      "location": d.anatomy_site.value if d.anatomy_site else None,
+      "target": d.target_value,
+      "diagnosis": d.diagnosis.value if d.diagnosis else None,
       "benign_malignant": d.diagnosis.value if d.diagnosis else None,
-      "age_approx": d.patient.age,
-      "confidence_score": d.confidence_score,
-      "diagnosed_by": d.diagnosed_by,
-      "diagnosed_at": d.diagnosed_at.isoformat()
+      "location": d.anatomy_site.value if d.anatomy_site else None,
+      "confidence_score": d.confidence_score, # TODO: 추후 진단 기록표에 컬럼 추가하는 확장 가능성을 위해 냅둠
+      "diagnosed_by": d.diagnosed_by, # TODO: 추후 진단 기록표에 컬럼 추가하는 확장 가능성을 위해 냅둠
+      "diagnosed_at": d.diagnosed_at.isoformat() # TODO: 추후 진단 기록표에 컬럼 추가하는 확장 가능성을 위해 냅둠
     })
 
   return {
-    "patient_id": d.patient.patient_id,
-    "patient_name": d.patient.name,
+    "total_records": len(results),
     "diagnoses": results
   }
 

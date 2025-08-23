@@ -7,16 +7,19 @@ import efficientnet.tfkeras as efn
 # GitHub 모델 URL
 MODEL_URL = "https://github.com/woosung-universe/koren_NeulMed/raw/main/Melanoma-Classifier-Federated-Learning/workspace/clientResults/base_model072.h5"
 
-# 서버에 임시로 저장할 경로
-LOCAL_MODEL_PATH = "/tmp/base_model072.h5"
+# 서버에 저장할 경로
+model_path = os.getenv("LOCAL_MODEL_PATH")
 
 def load_model():
+  # 디렉토리 생성
+  os.makedirs(os.path.dirname(model_path), exist_ok=True)
+
   # 모델 파일이 없으면 다운로드
-  if not os.path.exists(LOCAL_MODEL_PATH):
+  if not os.path.exists(model_path):
     print("모델 다운로드 중...")
     r = requests.get(MODEL_URL)
     r.raise_for_status()
-    with open(LOCAL_MODEL_PATH, "wb") as f:
+    with open(model_path, "wb") as f:
       f.write(r.content)
     print("모델 다운로드 완료.")
 
@@ -40,6 +43,6 @@ def load_model():
   ])
 
   # 깃허브에서 다운로드한 가중치 로드
-  model.load_weights(LOCAL_MODEL_PATH)
+  model.load_weights(model_path)
   print("모델 로드 완료.")
   return model
