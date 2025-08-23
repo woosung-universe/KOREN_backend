@@ -29,7 +29,6 @@ class Patient(Base):
   name = Column(String, nullable=False)
   age = Column(Integer)
   sex = Column(Enum(SexEnum))
-  total_diagnosis_summary = Column(Text)  # 환자의 총 진료 기록을 요약한 현재 상태
   created_at = Column(DateTime, default=datetime.utcnow)
   updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -55,10 +54,13 @@ class CommunicationSummary(Base):
   __tablename__ = "communication_summaries"
 
   id = Column(Integer, primary_key=True, index=True)
+  patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
   summary_created_at = Column(DateTime, default=datetime.utcnow)
-  summary = Column(Text)
+  category = Column(String, nullable=False)
+  content = Column(Text, nullable=False)
 
   diagnosis = relationship("Diagnosis", back_populates="communication_summary", uselist=False)
+  patient = relationship("Patient")
 
 # Diagnosis
 class Diagnosis(Base):

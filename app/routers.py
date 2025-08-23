@@ -90,14 +90,20 @@ async def diagnose(
     db.commit()
     db.refresh(diagnosis)
 
-    # 기존 total_diagnosis_summary 가져오기
-    total_summary = patient.total_diagnosis_summary
+    # 이전 대화 요약 불러오기
+    previous_summaries = db.query(models.CommunicationSummary) \
+      .filter(models.CommunicationSummary.patient_id == patient.id) \
+      .order_by(models.CommunicationSummary.summary_created_at.desc(),
+                models.CommunicationSummary.id.asc()) \
+      .limit(4) \
+      .all()
+    previous_summary_data = {s.category: s.content for s in previous_summaries}
 
     return JSONResponse(content={
-      "total_diagnosis_summary": total_summary,
       "diagnosis": diagnosis_result,
       "medical_image_id": medical_image.id,
-      "ai_description": ai_description
+      "ai_description": ai_description,
+      "previous_summary": previous_summary_data
     })
 
   except Exception as e:
@@ -142,6 +148,11 @@ class CommunicationSummaryDTO(BaseModel):
 @router.post("/summarize", response_model=dict)
 def create_summary(input_data: ConversationInput, db: Session = Depends(get_db)):
   try:
+    # 환자 데이터 입력 TODO: 프론트에서 환자 id도 ConversationInput에 같이 줘야함
+    patient = db.query(models.Patient).filter(models.Patient.patient_id == input_data.patient_id).first()
+    if not patient:
+      raise HTTPException(status_code=404, detail="Patient not found")
+
     # STT 기반 대화 요약
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -168,48 +179,15 @@ def create_summary(input_data: ConversationInput, db: Session = Depends(get_db))
     summary_text = response.choices[0].message.content  # JSON 문자열
     summary_json_kor = json.loads(summary_text)         # JSON 문자열 -> dict
 
-    # CommunicationSummary DB 직접 저장
-    db_summary = models.CommunicationSummary(
-        summary_created_at=datetime.utcnow(),
-        summary=summary_text
-    )
-    db.add(db_summary)
-    db.commit()
-    db.refresh(db_summary)
-
-    # total_diagnosis_summary 갱신
-    patient = db.query(models.Patient).filter(models.Patient.patient_id == input_data.patient_id).first()
-    if not patient:
-      raise HTTPException(status_code=404, detail="Patient not found")
-
-    prev_total_summary = patient.total_diagnosis_summary or ""
-    total_summary_prompt = f"""
-당신은 의료 기록 요약 전문가입니다.
-다음은 이전까지의 환자 총 진료 요약입니다:
-\"\"\"{prev_total_summary}\"\"\"
-
-이번 새 진료 요약 내용:
-\"\"\"{summary_text}\"\"\"
-
-이 정보를 기반으로 환자의 상태, 처방 및 진료 내용, 진료 계획을 한글 JSON으로 최신화하여 통합 요약해주세요:
-{{
-  "환자의 상태": "",
-  "처방 및 진료 내용": "",
-  "진료 계획": ""
-}}
-"""
-    total_response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-          {"role": "system", "content": "You are a medical record summarizer."},
-          {"role": "user", "content": total_summary_prompt}
-        ],
-        response_format={"type": "json_object"}
-    )
-
-    total_summary_text = total_response.choices[0].message.content
-    total_summary_json = json.loads(total_summary_text)
-    patient.total_diagnosis_summary = json.dumps(total_summary_json, ensure_ascii=False)
+    # JSON 키별로 CommunicationSummary에 개별 저장
+    for category, content in summary_json_kor.items():
+      db_summary = models.CommunicationSummary(
+          patient_id=patient.id,
+          summary_created_at=datetime.utcnow(),
+          category=category,
+          content=content
+      )
+      db.add(db_summary)
     db.commit()
 
     return summary_json_kor
@@ -227,21 +205,22 @@ def get_latest_summary(patient_id: str, db: Session = Depends(get_db)):
   if not patient:
     raise HTTPException(status_code=404, detail="Patient not found")
 
-  # 최신 CommunicationSummary 조회
-  summary = db.query(models.CommunicationSummary) \
-    .order_by(models.CommunicationSummary.summary_created_at.desc()) \
-    .first()
+  # 최신 CommunicationSummary 4개 조회 (patient_id 기준, summary_created_at 내림차순, id 오름차순)
+  summaries = db.query(models.CommunicationSummary) \
+    .filter(models.CommunicationSummary.patient_id == patient.id) \
+    .order_by(models.CommunicationSummary.summary_created_at.desc(), models.CommunicationSummary.id.asc()) \
+    .limit(4) \
+    .all()
 
-  if not summary:
+  if not summaries:
     raise HTTPException(status_code=404, detail="No communication summary found for this patient")
 
-  # summary.summary는 JSON text이므로 파싱
-  summary_json = json.loads(summary.summary)
+  result = {s.category: s.content for s in summaries}
 
   return {
     "patient_id": patient.patient_id,
-    "latest_summary": summary_json,
-    "created_at": summary.summary_created_at
+    "latest_summary": result,
+    "created_at": [s.summary_created_at for s in summaries]
   }
 
 # -----------------------------

@@ -10,7 +10,6 @@ CREATE TABLE patients (
                           name VARCHAR(255) NOT NULL,
                           age INTEGER,
                           sex sex_enum,
-                          total_diagnosis_summary TEXT,
                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -28,8 +27,10 @@ CREATE TABLE medical_images (
 -- COMMUNICATION_SUMMARIES
 CREATE TABLE communication_summaries (
                                          id SERIAL PRIMARY KEY,
+                                         patient_id INT NOT NULL REFERENCES patients(id),
                                          summary_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                         summary TEXT
+                                         category TEXT,
+                                         content TEXT
 );
 
 -- DIAGNOSES
