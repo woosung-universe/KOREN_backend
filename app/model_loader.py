@@ -3,6 +3,9 @@ import requests
 import tensorflow as tf
 from tensorflow.keras import layers as L
 import efficientnet.tfkeras as efn
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # GitHub 모델 URL
 MODEL_URL = "https://github.com/woosung-universe/koren_NeulMed/raw/main/Melanoma-Classifier-Federated-Learning/workspace/clientResults/base_model072.h5"

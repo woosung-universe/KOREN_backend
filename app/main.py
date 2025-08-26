@@ -1,7 +1,8 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import router
+from app.routers import router as medical_router
+from fl.routers import router as fl_router
 from app.model_loader import load_model
 
 app = FastAPI()
@@ -19,4 +20,5 @@ app.add_middleware(
 )
 
 # 라우터 등록
-app.include_router(router)
+app.include_router(medical_router, tags=["Medical"])
+app.include_router(fl_router, tags=["Federated Learning"])

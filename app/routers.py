@@ -1,4 +1,3 @@
-# routers.py
 from fastapi import APIRouter, File, UploadFile, Form, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -274,4 +273,8 @@ def get_diagnoses(db: Session = Depends(get_db)):
     "total_records": len(results),
     "diagnoses": results
   }
+
+# -----------------------------
+# POST: 로컬 학습
+# -----------------------------
 
