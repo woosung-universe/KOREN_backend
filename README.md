@@ -6,9 +6,6 @@
 
 ---
 
-requirements.txt 의존성들을 모두 받아야 모델이 로컬에서 동작함.
-두 번째 '모델 의존성 버전 변경사항'을 읽어보면 알겠지만, 해당 requirements는 python 3.11, window 기준으로 호환되도록 변경되어서 각자 로컬에 맞게 변경이 필요할 수 있습니다..🤮🤮
-
 ### venv 사용 시:
 ```
 1. python -m venv venv        # 가상환경 생성
